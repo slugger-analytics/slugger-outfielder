@@ -87,7 +87,7 @@ def healthz():
 # ═════════════════════════════════════════════════════════
 
 LAST_CSV_PATH = "optimized_positions.csv"
-DEFAULT_BACKGROUND = "img/background.png"
+DEFAULT_BACKGROUND = "img/background_generic.png"
 
 BATTERS: Dict[str, Dict] = {
     "dickerson_L": {
@@ -1680,12 +1680,32 @@ def _publish_identities(fingerprints: Dict[str, Dict], batters: dict) -> None:
     _identity_cache = fingerprints
 
 
+_json_qualifying_cache: Optional[List[Dict]] = None
+
+
+def _json_players_with_enough_data() -> List[Dict]:
+    """JSON-loader players who have at least MIN_QUALIFYING_BALLS plottable balls.
+
+    A batter below that bar draws an empty chart, so they are left out of the
+    picker, matching what the live API mode already does. Computed once.
+    """
+    global _json_qualifying_cache
+    if _json_qualifying_cache is None:
+        keep = []
+        for p in get_unique_players_with_spray_data():
+            df = get_player_spray_dataframe(p.get("player_id"))
+            if not df.empty and df.dropna(subset=["x", "y"]).shape[0] >= MIN_QUALIFYING_BALLS:
+                keep.append(p)
+        _json_qualifying_cache = keep
+    return _json_qualifying_cache
+
+
 @app.route("/")
 def index():
     """Render the main page with the player dropdown."""
     if USE_JSON_LOADER:
         try:
-            batters = build_player_dict(get_unique_players_with_spray_data())
+            batters = build_player_dict(_json_players_with_enough_data())
             if batters:
                 return render_template("index.html", batters=batters)
         except Exception:
@@ -1713,7 +1733,7 @@ def api_batters():
     """Return the current batter list as JSON (used by React frontend)."""
     if USE_JSON_LOADER:
         try:
-            batters = build_player_dict(get_unique_players_with_spray_data())
+            batters = build_player_dict(_json_players_with_enough_data())
             if batters:
                 return jsonify({"ok": True, "batters": batters})
         except Exception:

@@ -74,6 +74,84 @@
       border-color: #1a1a1a;
     }
 
+    /* The search box reuses .field-select but is a text field, so no dropdown arrow. */
+    .field-search {
+      background-image: none;
+      cursor: text;
+      margin-bottom: 6px;
+    }
+
+    /* One combined picker: team chips, a search box, and a clickable player list. */
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .chip {
+      padding: 4px 10px;
+      font-size: 12px;
+      border: 1px solid #d0d0d0;
+      border-radius: 999px;
+      background: #fff;
+      color: #444;
+      cursor: pointer;
+    }
+
+    .chip.active {
+      background: #1a1a1a;
+      border-color: #1a1a1a;
+      color: #fff;
+    }
+
+    .player-list {
+      max-height: 260px;
+      overflow-y: auto;
+      border: 1px solid #d0d0d0;
+      border-radius: 6px;
+      background: #fff;
+    }
+
+    .player-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      width: 100%;
+      padding: 8px 12px;
+      font-size: 14px;
+      text-align: left;
+      color: #1a1a1a;
+      background: none;
+      border: none;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+    }
+
+    .player-item:last-child {
+      border-bottom: none;
+    }
+
+    .player-item:hover {
+      background: #f5f5f5;
+    }
+
+    .player-item.selected {
+      background: #1a1a1a;
+      color: #fff;
+    }
+
+    .empty-note {
+      padding: 8px 12px;
+    }
+
+    .player-team {
+      font-size: 11px;
+      opacity: 0.6;
+      white-space: nowrap;
+    }
+
     .btn-generate {
       width: 100%;
       padding: 10px 16px;
@@ -282,6 +360,8 @@
       const [batters, setBatters] = useState({});
       const [selectedTeam, setSelectedTeam] = useState("All Teams");
       const [selectedBatter, setSelectedBatter] = useState("");
+      // Type-to-search box above the batter dropdown.
+      const [batterQuery, setBatterQuery] = useState("");
       const [pitcherHand, setPitcherHand] = useState("RHP");
       const [imageBase64, setImageBase64] = useState(null);
       const [batterLabel, setBatterLabel] = useState("");
@@ -381,6 +461,30 @@
           ? sortedBatterIds
           : sortedBatterIds.filter((id) => teamOf(id) === selectedTeam);
 
+      // Search narrows the batter dropdown. Every word typed has to appear in the
+      // batter's label or team, in any order, so "john smith" finds "Smith, John".
+      const searchWords = batterQuery
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter(Boolean);
+      const visibleBatterIds = searchWords.length === 0
+        ? filteredBatterIds
+        : filteredBatterIds.filter((id) => {
+            const hay = (
+              (batters[id].label || "") + " " + (batters[id].team_name || "")
+            ).toLowerCase().replace(/[^a-z0-9\s]/g, " ");
+            return searchWords.every((w) => hay.includes(w));
+          });
+
+      // If typing hides the current pick, move to the first match so the dropdown
+      // never names one hitter while Generate would run another.
+      useEffect(() => {
+        if (visibleBatterIds.length > 0 && !visibleBatterIds.includes(selectedBatter)) {
+          setSelectedBatter(visibleBatterIds[0]);
+        }
+      }, [batterQuery, selectedTeam, batters]);
+
       // The 5s poll swaps in a fresh batter list; if the chosen team is no
       // longer represented, fall back to "All Teams".
       useEffect(() => {
@@ -410,7 +514,11 @@
         ) {
           return;
         }
+        // An entry's merged_ids always lists its own id, so skip the pick itself.
+        // Otherwise choosing a team that does not hold the current pick "follows
+        // the fold" back to the pick and resets the filter to All Teams.
         const foldedInto = (id) =>
+          id !== selectedBatter &&
           ((batters[id] && batters[id].merged_ids) || []).includes(selectedBatter);
         const successor = selectedBatter
           ? filteredBatterIds.find(foldedInto) || Object.keys(batters).find(foldedInto)
@@ -633,36 +741,48 @@
             </div>
 
             <div className="field-group">
-              <label className="field-label">Team</label>
-              <select
-                className="field-select"
-                value={selectedTeam}
-                onChange={(e) => setSelectedTeam(e.target.value)}
-              >
-                {teamOptions.map((team) => (
-                  <option key={team} value={team}>
-                    {team}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="field-group">
               <label className="field-label">Batter</label>
               {loadingBatters ? (
                 <p className="status-line">Loading players…</p>
               ) : (
-                <select
-                  className="field-select"
-                  value={selectedBatter}
-                  onChange={(e) => setSelectedBatter(e.target.value)}
-                >
-                  {filteredBatterIds.map((id) => (
-                    <option key={id} value={id}>
-                      {batters[id].label}
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <div className="chip-row">
+                    {teamOptions.map((team) => (
+                      <button
+                        type="button"
+                        key={team}
+                        className={"chip" + (selectedTeam === team ? " active" : "")}
+                        onClick={() => setSelectedTeam(team)}
+                      >
+                        {team === "All Teams" ? "All" : team}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    className="field-select field-search"
+                    type="search"
+                    placeholder="Search players or teams"
+                    aria-label="Search batters"
+                    value={batterQuery}
+                    onChange={(e) => setBatterQuery(e.target.value)}
+                  />
+                  <div className="player-list">
+                    {visibleBatterIds.map((id) => (
+                      <button
+                        type="button"
+                        key={id}
+                        className={"player-item" + (id === selectedBatter ? " selected" : "")}
+                        onClick={() => setSelectedBatter(id)}
+                      >
+                        <span>{batters[id].label}</span>
+                        <span className="player-team">{teamOf(id)}</span>
+                      </button>
+                    ))}
+                    {visibleBatterIds.length === 0 && (
+                      <p className="status-line empty-note">No players match.</p>
+                    )}
+                  </div>
+                </>
               )}
               {playerCount > 0 && (
                 <p className="status-line success">
@@ -674,7 +794,7 @@
             <button
               className="btn-generate"
               onClick={handleGenerate}
-              disabled={loading || !selectedBatter}
+              disabled={loading || !selectedBatter || visibleBatterIds.length === 0}
             >
               {loading ? "Generating…" : "Generate Positions"}
             </button>
