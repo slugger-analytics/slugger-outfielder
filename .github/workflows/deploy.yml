@@ -2,9 +2,8 @@ name: Outfielder Deploy
 
 # Builds the widget-outfielder container (amd64, Flask/gunicorn) and deploys it to the
 # slugger-outfielder ECS Fargate service behind the shared slugger-alb at /widgets/outfielder/*.
-# Auth is via GitHub OIDC — no static AWS keys. This repo lives outside the slugger-analytics
-# org, so the deploy-role ARN is set directly below (an ARN is not a secret; access is gated
-# by the role's OIDC trust policy, which allow-lists repo:PhonicsQQ/slugger-outfielder).
+# Auth is via GitHub OIDC — no static AWS keys. The role ARN below is not a secret;
+# access is gated by the role trust policy for repo:slugger-analytics/slugger-outfielder.
 
 on:
   push:
