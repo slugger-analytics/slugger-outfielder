@@ -87,7 +87,7 @@ def healthz():
 # ═════════════════════════════════════════════════════════
 
 LAST_CSV_PATH = "optimized_positions.csv"
-DEFAULT_BACKGROUND = "img/background.png"
+DEFAULT_BACKGROUND = "img/background_generic.png"
 
 BATTERS: Dict[str, Dict] = {
     "dickerson_L": {

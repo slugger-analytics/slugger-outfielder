@@ -74,6 +74,13 @@
       border-color: #1a1a1a;
     }
 
+    /* The search box reuses .field-select but is a text field, so no dropdown arrow. */
+    .field-search {
+      background-image: none;
+      cursor: text;
+      margin-bottom: 6px;
+    }
+
     .btn-generate {
       width: 100%;
       padding: 10px 16px;
@@ -282,6 +289,8 @@
       const [batters, setBatters] = useState({});
       const [selectedTeam, setSelectedTeam] = useState("All Teams");
       const [selectedBatter, setSelectedBatter] = useState("");
+      // Type-to-search box above the batter dropdown.
+      const [batterQuery, setBatterQuery] = useState("");
       const [pitcherHand, setPitcherHand] = useState("RHP");
       const [imageBase64, setImageBase64] = useState(null);
       const [batterLabel, setBatterLabel] = useState("");
@@ -380,6 +389,30 @@
         selectedTeam === "All Teams"
           ? sortedBatterIds
           : sortedBatterIds.filter((id) => teamOf(id) === selectedTeam);
+
+      // Search narrows the batter dropdown. Every word typed has to appear in the
+      // batter's label or team, in any order, so "john smith" finds "Smith, John".
+      const searchWords = batterQuery
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter(Boolean);
+      const visibleBatterIds = searchWords.length === 0
+        ? filteredBatterIds
+        : filteredBatterIds.filter((id) => {
+            const hay = (
+              (batters[id].label || "") + " " + (batters[id].team_name || "")
+            ).toLowerCase().replace(/[^a-z0-9\s]/g, " ");
+            return searchWords.every((w) => hay.includes(w));
+          });
+
+      // If typing hides the current pick, move to the first match so the dropdown
+      // never names one hitter while Generate would run another.
+      useEffect(() => {
+        if (visibleBatterIds.length > 0 && !visibleBatterIds.includes(selectedBatter)) {
+          setSelectedBatter(visibleBatterIds[0]);
+        }
+      }, [batterQuery, selectedTeam, batters]);
 
       // The 5s poll swaps in a fresh batter list; if the chosen team is no
       // longer represented, fall back to "All Teams".
@@ -652,17 +685,34 @@
               {loadingBatters ? (
                 <p className="status-line">Loading players…</p>
               ) : (
-                <select
-                  className="field-select"
-                  value={selectedBatter}
-                  onChange={(e) => setSelectedBatter(e.target.value)}
-                >
-                  {filteredBatterIds.map((id) => (
-                    <option key={id} value={id}>
-                      {batters[id].label}
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <input
+                    className="field-select field-search"
+                    type="search"
+                    placeholder="Search players or teams"
+                    aria-label="Search batters"
+                    value={batterQuery}
+                    onChange={(e) => setBatterQuery(e.target.value)}
+                  />
+                  <select
+                    className="field-select"
+                    value={selectedBatter}
+                    onChange={(e) => setSelectedBatter(e.target.value)}
+                  >
+                    {visibleBatterIds.map((id) => (
+                      <option key={id} value={id}>
+                        {batters[id].label}
+                      </option>
+                    ))}
+                  </select>
+                  {batterQuery && (
+                    <p className="status-line">
+                      {visibleBatterIds.length === 0
+                        ? "No players match."
+                        : visibleBatterIds.length + (visibleBatterIds.length === 1 ? " match" : " matches")}
+                    </p>
+                  )}
+                </>
               )}
               {playerCount > 0 && (
                 <p className="status-line success">
@@ -674,7 +724,7 @@
             <button
               className="btn-generate"
               onClick={handleGenerate}
-              disabled={loading || !selectedBatter}
+              disabled={loading || !selectedBatter || visibleBatterIds.length === 0}
             >
               {loading ? "Generating…" : "Generate Positions"}
             </button>
