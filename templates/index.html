@@ -81,6 +81,77 @@
       margin-bottom: 6px;
     }
 
+    /* One combined picker: team chips, a search box, and a clickable player list. */
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .chip {
+      padding: 4px 10px;
+      font-size: 12px;
+      border: 1px solid #d0d0d0;
+      border-radius: 999px;
+      background: #fff;
+      color: #444;
+      cursor: pointer;
+    }
+
+    .chip.active {
+      background: #1a1a1a;
+      border-color: #1a1a1a;
+      color: #fff;
+    }
+
+    .player-list {
+      max-height: 260px;
+      overflow-y: auto;
+      border: 1px solid #d0d0d0;
+      border-radius: 6px;
+      background: #fff;
+    }
+
+    .player-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      width: 100%;
+      padding: 8px 12px;
+      font-size: 14px;
+      text-align: left;
+      color: #1a1a1a;
+      background: none;
+      border: none;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+    }
+
+    .player-item:last-child {
+      border-bottom: none;
+    }
+
+    .player-item:hover {
+      background: #f5f5f5;
+    }
+
+    .player-item.selected {
+      background: #1a1a1a;
+      color: #fff;
+    }
+
+    .empty-note {
+      padding: 8px 12px;
+    }
+
+    .player-team {
+      font-size: 11px;
+      opacity: 0.6;
+      white-space: nowrap;
+    }
+
     .btn-generate {
       width: 100%;
       padding: 10px 16px;
@@ -443,7 +514,11 @@
         ) {
           return;
         }
+        // An entry's merged_ids always lists its own id, so skip the pick itself.
+        // Otherwise choosing a team that does not hold the current pick "follows
+        // the fold" back to the pick and resets the filter to All Teams.
         const foldedInto = (id) =>
+          id !== selectedBatter &&
           ((batters[id] && batters[id].merged_ids) || []).includes(selectedBatter);
         const successor = selectedBatter
           ? filteredBatterIds.find(foldedInto) || Object.keys(batters).find(foldedInto)
@@ -666,26 +741,23 @@
             </div>
 
             <div className="field-group">
-              <label className="field-label">Team</label>
-              <select
-                className="field-select"
-                value={selectedTeam}
-                onChange={(e) => setSelectedTeam(e.target.value)}
-              >
-                {teamOptions.map((team) => (
-                  <option key={team} value={team}>
-                    {team}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="field-group">
               <label className="field-label">Batter</label>
               {loadingBatters ? (
                 <p className="status-line">Loading players…</p>
               ) : (
                 <>
+                  <div className="chip-row">
+                    {teamOptions.map((team) => (
+                      <button
+                        type="button"
+                        key={team}
+                        className={"chip" + (selectedTeam === team ? " active" : "")}
+                        onClick={() => setSelectedTeam(team)}
+                      >
+                        {team === "All Teams" ? "All" : team}
+                      </button>
+                    ))}
+                  </div>
                   <input
                     className="field-select field-search"
                     type="search"
@@ -694,24 +766,22 @@
                     value={batterQuery}
                     onChange={(e) => setBatterQuery(e.target.value)}
                   />
-                  <select
-                    className="field-select"
-                    value={selectedBatter}
-                    onChange={(e) => setSelectedBatter(e.target.value)}
-                  >
+                  <div className="player-list">
                     {visibleBatterIds.map((id) => (
-                      <option key={id} value={id}>
-                        {batters[id].label}
-                      </option>
+                      <button
+                        type="button"
+                        key={id}
+                        className={"player-item" + (id === selectedBatter ? " selected" : "")}
+                        onClick={() => setSelectedBatter(id)}
+                      >
+                        <span>{batters[id].label}</span>
+                        <span className="player-team">{teamOf(id)}</span>
+                      </button>
                     ))}
-                  </select>
-                  {batterQuery && (
-                    <p className="status-line">
-                      {visibleBatterIds.length === 0
-                        ? "No players match."
-                        : visibleBatterIds.length + (visibleBatterIds.length === 1 ? " match" : " matches")}
-                    </p>
-                  )}
+                    {visibleBatterIds.length === 0 && (
+                      <p className="status-line empty-note">No players match.</p>
+                    )}
+                  </div>
                 </>
               )}
               {playerCount > 0 && (

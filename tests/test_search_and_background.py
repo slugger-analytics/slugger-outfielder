@@ -55,3 +55,18 @@ def test_generic_background_script_matches_app_calibration():
     assert mgb.HOME == (cfg["home_x_px"], cfg["home_y_px"])
     assert mgb.LF_POLE == (cfg["lf_pole_x_px"], cfg["lf_pole_y_px"])
     assert mgb.RF_POLE == (cfg["rf_pole_x_px"], cfg["rf_pole_y_px"])
+
+
+def test_json_picker_only_lists_batters_with_enough_data(monkeypatch):
+    """A batter with too few balls draws an empty chart, so the picker drops them."""
+    import pandas as pd
+
+    good = {"player_id": "g", "player_name": "Good, Gary"}
+    bad = {"player_id": "b", "player_name": "Bad, Bob"}
+    monkeypatch.setattr(app_module, "_json_qualifying_cache", None)
+    monkeypatch.setattr(app_module, "get_unique_players_with_spray_data", lambda: [good, bad])
+    n = app_module.MIN_QUALIFYING_BALLS
+    frames = {"g": pd.DataFrame({"x": range(n), "y": range(n)}),
+              "b": pd.DataFrame({"x": [1, 2], "y": [1, 2]})}
+    monkeypatch.setattr(app_module, "get_player_spray_dataframe", lambda pid: frames[pid])
+    assert app_module._json_players_with_enough_data() == [good]
